@@ -1,5 +1,7 @@
-# Verifield — DeSci Data Marketplace on BNB Greenfield
-**One-liner:** BNB-native marketplace for climate & research datasets — sponsor-paid Greenfield uploads, DataNFTs, AI search, verified badges.
+ï»¿![CI](https://github.com/DiveshK007/verifield/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+# Verifield â€” DeSci Data Marketplace on BNB Greenfield
+**One-liner:** BNB-native marketplace for climate & research datasets â€” sponsor-paid Greenfield uploads, DataNFTs, AI search, verified badges.
 ## ? Features
 - DataNFT minting with provenance & royalties
 - Sponsor-paid storage on Greenfield (BSC)
@@ -15,3 +17,4 @@ cp .env.example .env && npm run dev
 \\\
 ## ?? License
 MIT
+
