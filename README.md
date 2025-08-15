@@ -31,3 +31,13 @@ pnpm dev
 5. Buyer downloads dataset
 
 > Hackathon scaffold: keys/permissions simplified for demo. Never commit secrets.
+
+---
+
+## Legal & Safety
+
+This software is provided “as is” under the MIT License (see [LICENSE](./LICENSE)).  
+For hackathon/demo use only; do not use with real private keys or sensitive data.
+
+**Branding:** The *VeriField* name and logo © 2025 VeriField Team.  
+They are **not** covered by the MIT code license (no trademark rights granted).
