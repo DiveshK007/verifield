@@ -41,3 +41,9 @@ For hackathon/demo use only; do not use with real private keys or sensitive data
 
 **Branding:** The *VeriField* name and logo © 2025 VeriField Team.  
 They are **not** covered by the MIT code license (no trademark rights granted).
+
+
+<p align="left">
+  <img src="assets/verifield-logo.png" alt="VeriField logo" width="96" />
+</p>
+
