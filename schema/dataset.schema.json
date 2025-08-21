@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DatasetMetadata",
+  "type": "object",
+  "required": [
+    "title",
+    "cid",
+    "sha256",
+    "licenseUri",
+    "domain"
+  ],
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cid": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "size": {
+      "type": "integer"
+    },
+    "licenseUri": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "climate",
+        "health",
+        "biotech",
+        "environment",
+        "other"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timeRange": {
+      "type": "object",
+      "properties": {
+        "start": "string",
+        "end": "string"
+      }
+    },
+    "geo": {
+      "type": "object",
+      "properties": {
+        "lat": "number",
+        "lon": "number",
+        "radius_km": "number"
+      }
+    },
+    "source": {
+      "type": "string"
+    },
+    "collectionMethod": {
+      "type": "string"
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

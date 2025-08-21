@@ -1,1 +1,26 @@
+# Node
+node_modules/
+npm-debug.log*
+pnpm-lock.yaml
+yarn.lock
+
+# Hardhat/Typechain
+artifacts/
+cache/
+typechain-types/
+
+# Env files (keep keys local)
+.env
+.env.*
+frontend/.env*
+!.env.example
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# OS/Editor junk
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
