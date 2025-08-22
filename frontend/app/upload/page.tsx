@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from 'react';
-import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { decodeEventLog } from 'viem';
 import { getDataNftAddress, dataNftAbi } from '../../lib/contracts';
+import { chain as configuredChain } from '../../lib/wagmi';
 
 export default function Upload() {
   const router = useRouter();
   const { address } = useAccount();
   const publicClient = usePublicClient();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
 
   const [cid, setCid] = useState('');
   const [sha256sum, setSha] = useState('');
@@ -37,11 +40,24 @@ export default function Upload() {
       return;
     }
     if (!address) {
-      setError('Connect your wallet first');
+      setError('Please connect your wallet');
+      return;
+    }
+    const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337');
+    if (chainId !== requiredChainId) {
+      setError('Please switch network');
       return;
     }
     if (!cid.trim()) {
       setError('CID is required');
+      return;
+    }
+    if (sha256sum && !/^([A-Fa-f0-9]{64})$/.test(sha256sum.trim())) {
+      setError('SHA-256 must be 64 hex chars');
+      return;
+    }
+    if (licenseUri && !/^(https?:\/\/|ipfs:\/\/)/i.test(licenseUri.trim())) {
+      setError('License URL must start with http(s):// or ipfs://');
       return;
     }
     try {
@@ -55,23 +71,25 @@ export default function Upload() {
           .map((t) => t.trim())
           .filter(Boolean),
         verified,
-      } as const;
+      };
 
-      const hash = await writeContractAsync({
+      const hash = await (writeContractAsync as any)({
         address: dataNftAddress,
-        abi: dataNftAbi,
+        abi: dataNftAbi as any,
         functionName: 'mint',
-        args: [address, meta],
+        args: [address, meta] as any,
+        account: address,
+        chain: configuredChain,
       });
 
       const receipt = await publicClient!.waitForTransactionReceipt({ hash });
 
       let tokenId: string | null = null;
-      for (const log of receipt.logs) {
+      for (const log of receipt.logs as any[]) {
         if (log.address.toLowerCase() !== dataNftAddress.toLowerCase()) continue;
         try {
-          const decoded = decodeEventLog({ abi: dataNftAbi, data: log.data, topics: log.topics });
-          if (decoded.eventName === 'Minted') {
+          const decoded = decodeEventLog({ abi: dataNftAbi, data: log.data, topics: (log as any).topics }) as any;
+          if (decoded?.eventName === 'Minted') {
             const tid = (decoded.args as any).tokenId as bigint;
             tokenId = tid?.toString();
             break;
@@ -93,6 +111,19 @@ export default function Upload() {
           {envError && (
             <div className="text-amber-300/90 text-sm">{envError}</div>
           )}
+          {!envError && (!address || chainId !== Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337')) && (
+            <div className="text-amber-300/90 text-sm flex items-center gap-2">
+              <span>Please connect & switch network</span>
+              <button
+                type="button"
+                className="px-2 py-1 rounded bg-amber-400 text-black text-sm"
+                onClick={() => switchChain({ chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337') })}
+                disabled={isSwitching}
+              >
+                {isSwitching ? 'Switching…' : 'Switch network'}
+              </button>
+            </div>
+          )}
           <label className="grid gap-1">
             <span className="text-sm opacity-80">CID *</span>
             <input
@@ -108,16 +139,18 @@ export default function Upload() {
             <span className="text-sm opacity-80">SHA-256</span>
             <input
               type="text"
+              required
               value={sha256sum}
               onChange={(e) => setSha(e.target.value)}
               className="bg-neutral-800 p-2 rounded border border-neutral-700"
-              placeholder="optional checksum"
+              placeholder="optional checksum (64 hex)"
             />
           </label>
           <label className="grid gap-1">
             <span className="text-sm opacity-80">License URL</span>
             <input
               type="text"
+              required
               value={licenseUri}
               onChange={(e) => setLicenseUri(e.target.value)}
               className="bg-neutral-800 p-2 rounded border border-neutral-700"
@@ -154,7 +187,7 @@ export default function Upload() {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isPending || Boolean(envError)}
+              disabled={isPending || Boolean(envError) || !address || chainId !== Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337')}
               className="px-4 py-2 rounded bg-emerald-400 text-black disabled:opacity-60"
             >
               {isPending ? 'Minting…' : 'Mint DataNFT'}

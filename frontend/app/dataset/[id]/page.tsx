@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo } from 'react';
-import { useReadContract } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
+import { useQuery } from '@tanstack/react-query';
 import { dataNftAbi } from '../../../lib/abis/DataNFT';
-import { getDataNftAddress } from '../../../lib/contracts';
+import { getDataNftAddress, getStorageGateway } from '../../../lib/contracts';
+import { chain as configuredChain } from '../../../lib/wagmi';
 
 function isHttpOrIpfs(url?: string): boolean {
   if (!url) return false;
@@ -24,24 +26,36 @@ export default function DatasetPage({ params }: { params: { id: string } }) {
     envError = e?.message ?? 'Contract address missing';
   }
 
-  const { data, error, isPending } = useReadContract({
-    address: address ?? undefined,
-    abi: dataNftAbi,
-    functionName: 'getDataset',
-    args: tokenId ? [tokenId] : undefined,
-    query: { enabled: Boolean(address && tokenId) },
-  });
+  const publicClient = usePublicClient();
+  const { address: wallet } = useAccount();
+  const { writeContractAsync, isPending: isWriting } = useWriteContract();
 
-  const dataset = data as
-    | {
+  const datasetQ = useQuery({
+    queryKey: ['dataset', address, tokenId?.toString()],
+    enabled: Boolean(address && tokenId && publicClient),
+    queryFn: async () => {
+      const result = await publicClient!.readContract({ address: address!, abi: dataNftAbi, functionName: 'getDataset', args: [tokenId!] });
+      return result as {
         cid: string;
         sha256sum: string;
         licenseUri: string;
         domain: string;
         tags: string[];
         verified: boolean;
-      }
-    | undefined;
+      };
+    },
+  });
+
+  const ownerQ = useQuery({
+    queryKey: ['ownerOf', address, tokenId?.toString()],
+    enabled: Boolean(address && tokenId && publicClient),
+    queryFn: async () => publicClient!.readContract({ address: address!, abi: dataNftAbi, functionName: 'ownerOf', args: [tokenId!] }) as Promise<`0x${string}`>,
+  });
+
+  const isOwner = wallet && ownerQ.data && wallet.toLowerCase() === ownerQ.data.toLowerCase();
+  const dataset = datasetQ.data;
+  const error = datasetQ.error as any;
+  const isPending = datasetQ.isPending;
 
   return (
     <main className="p-6">
@@ -117,7 +131,33 @@ export default function DatasetPage({ params }: { params: { id: string } }) {
                   )}
                 </dd>
               </div>
+              <div>
+                <dt className="text-sm opacity-70">Open</dt>
+                <dd className="mt-1">
+                  <a className="px-3 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-sm" href={`${getStorageGateway()}${dataset.cid}`} target="_blank" rel="noreferrer">Open dataset</a>
+                </dd>
+              </div>
             </dl>
+            {isOwner && (
+              <div className="mt-6">
+                <button
+                  className="px-3 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-sm"
+                  disabled={isWriting}
+                  onClick={async () => {
+                    try {
+                      const hash = await (writeContractAsync as any)({ address: address!, abi: dataNftAbi as any, functionName: 'setVerified', args: [tokenId!, !dataset.verified], account: wallet!, chain: configuredChain });
+                      await publicClient!.waitForTransactionReceipt({ hash });
+                      await datasetQ.refetch();
+                    } catch (e: any) {
+                      // no-op, inline error via console
+                      console.error(e);
+                    }
+                  }}
+                >
+                  {isWriting ? 'Updating…' : dataset.verified ? 'Unverify' : 'Verify'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

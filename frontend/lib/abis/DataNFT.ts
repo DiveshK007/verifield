@@ -3,7 +3,7 @@
 import type { Abi } from 'viem';
 
 // Minimal ABI surface needed for the app
-export const dataNftAbi = [
+export const dataNftAbi: Abi = [
   {
     type: 'function',
     name: 'mint',
@@ -24,6 +24,30 @@ export const dataNftAbi = [
       },
     ],
     outputs: [{ name: 'tokenId', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'setVerified',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'tokenId', type: 'uint256' },
+      { name: 'value', type: 'bool' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'ownerOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: 'owner', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'tokenURI',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: 'uri', type: 'string' }],
   },
   {
     type: 'function',
@@ -54,8 +78,17 @@ export const dataNftAbi = [
       { name: 'cid', type: 'string', indexed: false },
     ],
   },
-] as const satisfies Abi;
+  {
+    type: 'event',
+    name: 'Transfer',
+    inputs: [
+      { name: 'from', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'tokenId', type: 'uint256', indexed: true },
+    ],
+  },
+] as const;
 
-export type DataNftAbi = typeof dataNftAbi;
+export type DataNftAbi = Abi;
 
 

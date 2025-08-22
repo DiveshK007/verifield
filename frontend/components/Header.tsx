@@ -3,6 +3,7 @@
 
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
 import { chain as configuredChain } from '../lib/wagmi';
+import { getDataNftAddress } from '../lib/contracts';
 
 export default function Header() {
   const { address, isConnected } = useAccount();
@@ -13,11 +14,16 @@ export default function Header() {
 
   const injected = connectors.find(c => c.id === 'injected') ?? connectors[0];
   const onWrongChain = isConnected && chainId !== configuredChain.id;
+  let addrMissing = false;
+  try { getDataNftAddress(); } catch (_) { addrMissing = true; }
 
   return (
     <div className="px-4 py-3 border-b border-neutral-800 flex items-center gap-3">
       <a href="/" className="font-semibold">Verifield</a>
       <div className="ml-auto flex items-center gap-3">
+        {addrMissing && (
+          <div className="text-amber-300/90 text-sm">Set NEXT_PUBLIC_DATANFT_ADDRESS in .env.local</div>
+        )}
         {onWrongChain && (
           <div className="text-amber-300/90 text-sm flex items-center gap-2">
             <span>Wrong network</span>
@@ -26,7 +32,7 @@ export default function Header() {
               onClick={() => switchChain({ chainId: configuredChain.id })}
               disabled={isSwitching}
             >
-              {isSwitching ? 'Switching…' : 'Switch to Local'}
+              {isSwitching ? 'Switching…' : `Switch to ${configuredChain.id}`}
             </button>
           </div>
         )}
