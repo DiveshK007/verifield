@@ -30,18 +30,19 @@ contract DataNFT is ERC721, Ownable, IDataNFT {
     }
 
     function setVerified(uint256 tokenId, bool v) external override onlyOwner {
-        require(_exists(tokenId), "bad token");
+        require(_ownerOf(tokenId) != address(0), "bad token");
         _datasets[tokenId].verified = v;
         emit Verified(tokenId, v);
     }
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "bad token");
+        require(_ownerOf(tokenId) != address(0), "bad token");
         return string(abi.encodePacked("data:application/json;utf8,{\"name\":\"Data #", _toString(tokenId), "\"}"));
     }
 
     function getDataset(uint256 tokenId) external view override returns (Dataset memory) {
-        require(_exists(tokenId), "bad token");
+        require(_ownerOf(tokenId) != address(0), "bad token");
+
         return _datasets[tokenId];
     }
 

@@ -8,13 +8,16 @@
     "deploy:testnet": "hardhat run scripts/deploy.ts --network bsc_testnet"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "3.1.0",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.22.7",
+    "dotenv": "^16.4.5",
+    "ethers": "6.15.0",
+    "hardhat": "^2.26.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4",
-    "dotenv": "^16.4.5"
+    "typescript": "^5.4.5"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2"
-  }
+  },
+  "type": "commonjs"
 }
