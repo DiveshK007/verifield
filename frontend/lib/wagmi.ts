@@ -16,6 +16,15 @@ export const chain = {
   rpcUrls: { default: { http: [rpcUrl] } },
 };
 
+export function assertEnv() {
+  const missing: string[] = [];
+  if (!process.env.NEXT_PUBLIC_CHAIN_ID) missing.push('NEXT_PUBLIC_CHAIN_ID');
+  if (!process.env.NEXT_PUBLIC_RPC_URL) missing.push('NEXT_PUBLIC_RPC_URL');
+  if (!process.env.NEXT_PUBLIC_APP_NAME) missing.push('NEXT_PUBLIC_APP_NAME');
+  if (!process.env.NEXT_PUBLIC_STORAGE_GATEWAY) missing.push('NEXT_PUBLIC_STORAGE_GATEWAY');
+  if (missing.length) throw new Error(`Missing env: ${missing.join(', ')}`);
+}
+
 // Global Wagmi config
 assertEnv();
 
@@ -26,12 +35,6 @@ export const config = createConfig({
     [chain.id]: http(rpcUrl),
   },
 });
-
-export function assertEnv() {
-  const required = ['NEXT_PUBLIC_CHAIN_ID', 'NEXT_PUBLIC_RPC_URL', 'NEXT_PUBLIC_APP_NAME', 'NEXT_PUBLIC_STORAGE_GATEWAY'];
-  const missing = required.filter((k) => !process.env[k as keyof NodeJS.ProcessEnv]);
-  if (missing.length) throw new Error(`Missing env: ${missing.join(', ')}`);
-}
 
 export const queryClient = new QueryClient();
 

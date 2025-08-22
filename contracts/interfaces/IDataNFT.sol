@@ -14,4 +14,5 @@ interface IDataNFT {
     function mint(address to, Dataset calldata meta) external returns (uint256);
     function setVerified(uint256 tokenId, bool v) external;
     function getDataset(uint256 tokenId) external view returns (Dataset memory);
+    function totalSupply() external view returns (uint256);
 }

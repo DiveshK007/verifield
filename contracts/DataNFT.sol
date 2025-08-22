@@ -8,11 +8,16 @@ import "./interfaces/IDataNFT.sol";
 contract DataNFT is ERC721, Ownable, IDataNFT {
     uint256 private _tokenId;
     mapping(uint256 => Dataset) private _datasets;
+    address public verifierRegistry;
 
-    event Minted(uint256 indexed tokenId, address indexed to, string cid);
+    event Minted(uint256 tokenId, address indexed to, string cid);
     event Verified(uint256 indexed tokenId, bool verified);
 
     constructor(address initialOwner) ERC721("DataNFT", "DATA") Ownable(initialOwner) {}
+
+    function setVerifierRegistry(address registry) external onlyOwner {
+        verifierRegistry = registry;
+    }
 
     function mint(address to, Dataset calldata meta) external override onlyOwner returns (uint256) {
         _tokenId += 1;
@@ -29,28 +34,41 @@ contract DataNFT is ERC721, Ownable, IDataNFT {
         return _tokenId;
     }
 
-    function setVerified(uint256 tokenId, bool v) external override onlyOwner {
-        require(_ownerOf(tokenId) != address(0), "bad token");
+    function setVerified(uint256 tokenId, bool v) external override {
+        require(ownerOf(tokenId) != address(0), "bad token");
+        require(msg.sender == owner() || msg.sender == verifierRegistry, "not authorized");
         _datasets[tokenId].verified = v;
         emit Verified(tokenId, v);
     }
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_ownerOf(tokenId) != address(0), "bad token");
+        require(ownerOf(tokenId) != address(0), "bad token");
         return string(abi.encodePacked("data:application/json;utf8,{\"name\":\"Data #", _toString(tokenId), "\"}"));
     }
 
     function getDataset(uint256 tokenId) external view override returns (Dataset memory) {
-        require(_ownerOf(tokenId) != address(0), "bad token");
+        require(ownerOf(tokenId) != address(0), "bad token");
         return _datasets[tokenId];
+    }
+
+    function totalSupply() external view returns (uint256) {
+        return _tokenId;
     }
 
     function _toString(uint256 value) internal pure returns (string memory) {
         if (value == 0) return "0";
-        uint256 temp = value; uint256 digits;
-        while (temp != 0) { digits++; temp /= 10; }
+        uint256 temp = value; 
+        uint256 digits = 0;
+        while (temp != 0) { 
+            digits++; 
+            temp /= 10; 
+        }
         bytes memory buffer = new bytes(digits);
-        while (value != 0) { digits -= 1; buffer[digits] = bytes1(uint8(48 + uint256(value % 10))); value /= 10; }
+        while (value != 0) { 
+            digits -= 1; 
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10))); 
+            value /= 10; 
+        }
         return string(buffer);
     }
 }

@@ -55,31 +55,8 @@ export async function readDataset(tokenId: bigint): Promise<{ owner: Address } &
   return { owner, ...meta };
 }
 
-export async function mintDataset(args: { to: Address; meta: DatasetMeta }): Promise<bigint> {
-  const { publicClient, walletClient, dataNft } = getClients();
-  const hash = await (walletClient as any).writeContract({ address: dataNft.address, abi: dataNft.abi as any, functionName: 'mint', args: [args.to, args.meta] });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  let tokenId: bigint | null = null;
-  for (const log of receipt.logs as any[]) {
-    if (log.address.toLowerCase() !== (dataNft.address as string).toLowerCase()) continue;
-    try {
-      const decoded = decodeEventLog({ abi: dataNft.abi as any, data: log.data, topics: log.topics });
-      if ((decoded as any)?.eventName === 'Minted') {
-        tokenId = (decoded as any).args.tokenId as bigint;
-        break;
-      }
-    } catch {}
-  }
-  if (tokenId == null) throw new Error('Minted event not found');
-  return tokenId;
-}
-
-export async function setVerified(args: { tokenId: bigint; value: boolean }) {
-  const { publicClient, walletClient, dataNft } = getClients();
-  const hash = await (walletClient as any).writeContract({ address: dataNft.address, abi: dataNft.abi as any, functionName: 'setVerified', args: [args.tokenId, args.value] });
-  await publicClient.waitForTransactionReceipt({ hash });
-  return true;
-}
+// Note: These functions are now just helpers - the actual contract calls should be made using wagmi hooks
+// in the React components (useWriteContract, useReadContract)
 
 export async function readRecentTokenIds(limit: number): Promise<bigint[]> {
   const { publicClient, dataNft } = getClients();

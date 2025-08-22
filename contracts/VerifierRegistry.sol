@@ -25,6 +25,9 @@ contract VerifierRegistry is Ownable {
     modifier onlyVerifier() { require(_verifiers.contains(msg.sender) || msg.sender == owner(), "not verifier"); _; }
 
     function setVerified(uint256 tokenId, bool v) external onlyVerifier {
+        // Call the DataNFT contract's setVerified function
+        // Note: This will only work if the caller is the owner of the DataNFT contract
+        // or if we modify the DataNFT contract to allow verifiers
         dataNFT.setVerified(tokenId, v);
         emit DatasetVerified(tokenId, v);
     }

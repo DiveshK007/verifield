@@ -10,8 +10,11 @@ export async function mockUpload(file: File): Promise<{ cid: string; sha256: str
   const hashBuffer = await crypto.subtle.digest('SHA-256', buf);
   const hashArr = Array.from(new Uint8Array(hashBuffer));
   const hex = hashArr.map((b) => b.toString(16).padStart(2, '0')).join('');
-  const cid = `bafy${hex.slice(0, 20)}`;
-  return { cid, sha256: hex };
+  
+  // Generate a more realistic mock CID (bafy format)
+  const mockCid = `bafybeig${hex.slice(0, 44)}`;
+  
+  return { cid: mockCid, sha256: hex };
 }
 
 // Real IPFS upload (using Pinata for hackathon demo)

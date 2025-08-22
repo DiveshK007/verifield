@@ -4,51 +4,95 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-interface IDataAccessEmitter {
-    event AccessGranted(address indexed buyer, address indexed nft, uint256 indexed tokenId);
+interface IDataNFT {
+  function ownerOf(uint256 tokenId) external view returns (address);
+  function totalSupply() external view returns (uint256);
 }
 
-contract Marketplace is Ownable, IDataAccessEmitter {
-    struct Listing { address nft; uint256 tokenId; uint256 price; address seller; bool active; }
-    mapping(bytes32 => Listing) public listings;
+contract Marketplace is Ownable {
+  IDataNFT public immutable dataNFT;
 
-    event Listed(address indexed nft, uint256 indexed tokenId, uint256 price, address seller);
-    event Delisted(address indexed nft, uint256 indexed tokenId);
-    event Purchased(address indexed nft, uint256 indexed tokenId, address buyer, uint256 price);
+  struct UserStats {
+    uint256 uploads;     // set when mint happens (call from frontend or emit hook)
+    uint256 salesCount;  // total number of purchases of their items
+    uint256 credits;     // wei accrued from royalties/sales
+  }
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+  struct ItemStats {
+    uint256 sales;       // number of times this token was purchased
+  }
 
-    function _key(address nft, uint256 tokenId) internal pure returns (bytes32) {
-        return keccak256(abi.encode(nft, tokenId));
-    }
+  mapping(address => UserStats) public userStats;
+  mapping(uint256 => ItemStats) public itemStats;
+  mapping(address => uint256[]) public ownedTokens;   // assets the user bought via this marketplace
 
-    function list(address nft, uint256 tokenId, uint256 price) external {
-        IERC721 erc = IERC721(nft);
-        require(erc.ownerOf(tokenId) == msg.sender, "not owner");
-        require(erc.isApprovedForAll(msg.sender, address(this)) || erc.getApproved(tokenId) == address(this), "not approved");
-        bytes32 k = _key(nft, tokenId);
-        listings[k] = Listing({nft: nft, tokenId: tokenId, price: price, seller: msg.sender, active: true});
-        emit Listed(nft, tokenId, price, msg.sender);
-    }
+  uint96 public feeBps = 250; // 2.5% fee; 0 if you don't need it. Remainder to creator.
 
-    function delist(address nft, uint256 tokenId) external {
-        bytes32 k = _key(nft, tokenId);
-        Listing memory L = listings[k];
-        require(L.active, "not active");
-        require(L.seller == msg.sender, "not seller");
-        delete listings[k];
-        emit Delisted(nft, tokenId);
-    }
+  event Purchased(address indexed buyer, uint256 indexed tokenId, uint256 price, uint256 toCreator);
+  event CreditsAccrued(address indexed owner, uint256 amount);
+  event CreditsWithdrawn(address indexed owner, uint256 amount);
+  event UploadCountBumped(address indexed owner, uint256 newCount); // optional helper
 
-    function buy(address nft, uint256 tokenId) external payable {
-        bytes32 k = _key(nft, tokenId);
-        Listing memory L = listings[k];
-        require(L.active, "not listed");
-        require(msg.value >= L.price, "insufficient");
-        delete listings[k];
-        (bool ok, ) = L.seller.call{value: L.price}("");
-        require(ok, "pay fail");
-        emit Purchased(nft, tokenId, msg.sender, L.price);
-        emit AccessGranted(msg.sender, nft, tokenId);
-    }
+  constructor(address _dataNFT, address initialOwner) Ownable(initialOwner) {
+    dataNFT = IDataNFT(_dataNFT);
+  }
+
+  // simple fixed-price purchase for demo (you can pass price from UI)
+  function purchase(uint256 tokenId) external payable {
+    address owner = dataNFT.ownerOf(tokenId);
+    require(owner != address(0) && owner != msg.sender, "bad owner/buyer");
+    uint256 price = msg.value;
+    require(price > 0, "no value");
+
+    uint256 fee = (price * feeBps) / 10_000;
+    uint256 toCreator = price - fee;
+
+    // accrue credits to creator
+    userStats[owner].credits += toCreator;
+    userStats[owner].salesCount += 1;
+    itemStats[tokenId].sales += 1;
+    ownedTokens[msg.sender].push(tokenId);
+
+    emit CreditsAccrued(owner, toCreator);
+    emit Purchased(msg.sender, tokenId, price, toCreator);
+  }
+
+  function withdrawCredits() external {
+    uint256 amt = userStats[msg.sender].credits;
+    require(amt > 0, "no credits");
+    userStats[msg.sender].credits = 0;
+    (bool ok,) = msg.sender.call{value: amt}("");
+    require(ok, "xfer fail");
+    emit CreditsWithdrawn(msg.sender, amt);
+  }
+
+  // helper your frontend can call right after mint
+  function bumpUpload(address owner) external {
+    // in production: restrict (e.g., only DataNFT or a trusted minter can call)
+    userStats[owner].uploads += 1;
+    emit UploadCountBumped(owner, userStats[owner].uploads);
+  }
+
+  // views for UI
+  function getUserSummary(address who) external view returns (
+    uint256 uploads, uint256 salesCount, uint256 credits, uint256 ownedCount
+  ) {
+    UserStats memory s = userStats[who];
+    return (s.uploads, s.salesCount, s.credits, ownedTokens[who].length);
+  }
+
+  function getOwnedTokens(address who) external view returns (uint256[] memory) {
+    return ownedTokens[who];
+  }
+
+  // Get item stats
+  function getItemStats(uint256 tokenId) external view returns (uint256 sales) {
+    return itemStats[tokenId].sales;
+  }
+
+  // Update fee percentage (only owner)
+  function setFeeBps(uint96 newFeeBps) external onlyOwner {
+    require(newFeeBps <= 1000, "fee too high"); // max 10%
+    feeBps = newFeeBps;
+  }
 }
