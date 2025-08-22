@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from 'react';
-import { useAccount, useWriteContract, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
+import { useAccount, useChainId, useSwitchChain, useConnect } from 'wagmi';
 import { useRouter } from 'next/navigation';
-import { decodeEventLog } from 'viem';
-import { getDataNftAddress, dataNftAbi } from '../../lib/contracts';
-import { chain as configuredChain } from '../../lib/wagmi';
+import { mintDataset } from '@/lib/contracts';
+import { smartUpload } from '@/lib/storage';
 
 export default function Upload() {
   const router = useRouter();
   const { address } = useAccount();
-  const publicClient = usePublicClient();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
+  const { connectors, connect, isPending: isConnecting } = useConnect();
 
   const [cid, setCid] = useState('');
   const [sha256sum, setSha] = useState('');
@@ -20,30 +19,19 @@ export default function Upload() {
   const [domain, setDomain] = useState('');
   const [tags, setTags] = useState('');
   const [verified, setVerified] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  let dataNftAddress: `0x${string}` | null = null;
-  let envError: string | null = null;
-  try {
-    dataNftAddress = getDataNftAddress();
-  } catch (e: any) {
-    envError = e?.message ?? 'Contract address missing';
-  }
-
-  const { writeContractAsync, isPending } = useWriteContract();
+  const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337');
+  const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!dataNftAddress) {
-      setError(envError || 'Contract address not configured');
-      return;
-    }
     if (!address) {
       setError('Please connect your wallet');
       return;
     }
-    const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337');
     if (chainId !== requiredChainId) {
       setError('Please switch network');
       return;
@@ -73,33 +61,12 @@ export default function Upload() {
         verified,
       };
 
-      const hash = await (writeContractAsync as any)({
-        address: dataNftAddress,
-        abi: dataNftAbi as any,
-        functionName: 'mint',
-        args: [address, meta] as any,
-        account: address,
-        chain: configuredChain,
-      });
-
-      const receipt = await publicClient!.waitForTransactionReceipt({ hash });
-
-      let tokenId: string | null = null;
-      for (const log of receipt.logs as any[]) {
-        if (log.address.toLowerCase() !== dataNftAddress.toLowerCase()) continue;
-        try {
-          const decoded = decodeEventLog({ abi: dataNftAbi, data: log.data, topics: (log as any).topics }) as any;
-          if (decoded?.eventName === 'Minted') {
-            const tid = (decoded.args as any).tokenId as bigint;
-            tokenId = tid?.toString();
-            break;
-          }
-        } catch (_) {}
-      }
-
-      router.push(`/dataset/${tokenId ?? ''}`);
+      const tokenId = await mintDataset({ to: address, meta });
+      router.push(`/dataset/${tokenId.toString()}`);
     } catch (err: any) {
       setError(err?.shortMessage || err?.message || 'Failed to mint');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -108,22 +75,38 @@ export default function Upload() {
       <div className="max-w-xl">
         <h2 className="text-2xl font-semibold">Upload dataset</h2>
         <form onSubmit={onSubmit} className="mt-5 rounded-lg border border-neutral-800 bg-neutral-900/40 p-5 grid gap-4">
-          {envError && (
-            <div className="text-amber-300/90 text-sm">{envError}</div>
-          )}
-          {!envError && (!address || chainId !== Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337')) && (
+          {(!address || chainId !== requiredChainId) && (
             <div className="text-amber-300/90 text-sm flex items-center gap-2">
-              <span>Please connect & switch network</span>
-              <button
-                type="button"
-                className="px-2 py-1 rounded bg-amber-400 text-black text-sm"
-                onClick={() => switchChain({ chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337') })}
-                disabled={isSwitching}
-              >
-                {isSwitching ? 'Switching…' : 'Switch network'}
-              </button>
+              <span>{!address ? 'Please connect' : 'Please switch network'}</span>
+              {!address ? (
+                <button type="button" className="px-2 py-1 rounded bg-amber-400 text-black text-sm" onClick={() => connect({ connector: connectors.find(c => c.id === 'injected') ?? connectors[0] })} disabled={isConnecting}>{isConnecting ? 'Connecting…' : 'Connect'}</button>
+              ) : (
+                <button type="button" className="px-2 py-1 rounded bg-amber-400 text-black text-sm" onClick={() => switchChain({ chainId: requiredChainId })} disabled={isSwitching}>{isSwitching ? 'Switching…' : 'Switch network'}</button>
+              )}
             </div>
           )}
+          <label className="grid gap-1">
+            <span className="text-sm opacity-80">Pick file (demo)</span>
+            <input
+              type="file"
+              onChange={async (e) => {
+                const f = e.target.files?.[0] || null;
+                setFile(f ?? null);
+                if (f) {
+                  setError(null);
+                  try {
+                    const { cid: mcid, sha256, source } = await smartUpload(f);
+                    setCid(mcid);
+                    setSha(sha256);
+                    setError(source === 'ipfs' ? null : 'Using mock storage (IPFS failed)');
+                  } catch (err: any) {
+                    setError(`Upload failed: ${err.message}`);
+                  }
+                }
+              }}
+              className="text-sm"
+            />
+          </label>
           <label className="grid gap-1">
             <span className="text-sm opacity-80">CID *</span>
             <input
@@ -187,10 +170,10 @@ export default function Upload() {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isPending || Boolean(envError) || !address || chainId !== Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '31337')}
+              disabled={submitting || !address || chainId !== requiredChainId}
               className="px-4 py-2 rounded bg-emerald-400 text-black disabled:opacity-60"
             >
-              {isPending ? 'Minting…' : 'Mint DataNFT'}
+              {submitting ? 'Minting…' : 'Mint DataNFT'}
             </button>
           </div>
         </form>

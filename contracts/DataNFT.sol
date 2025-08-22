@@ -42,7 +42,6 @@ contract DataNFT is ERC721, Ownable, IDataNFT {
 
     function getDataset(uint256 tokenId) external view override returns (Dataset memory) {
         require(_ownerOf(tokenId) != address(0), "bad token");
-
         return _datasets[tokenId];
     }
 

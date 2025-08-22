@@ -80,6 +80,14 @@ export const dataNftAbi: Abi = [
   },
   {
     type: 'event',
+    name: 'Verified',
+    inputs: [
+      { name: 'tokenId', type: 'uint256', indexed: true },
+      { name: 'verified', type: 'bool', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
     name: 'Transfer',
     inputs: [
       { name: 'from', type: 'address', indexed: true },

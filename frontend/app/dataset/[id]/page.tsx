@@ -1,15 +1,15 @@
 "use client";
 
 import { useMemo } from 'react';
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
-import { useQuery } from '@tanstack/react-query';
-import { dataNftAbi } from '../../../lib/abis/DataNFT';
-import { getDataNftAddress, getStorageGateway } from '../../../lib/contracts';
-import { chain as configuredChain } from '../../../lib/wagmi';
+import { useAccount } from 'wagmi';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { readDataset, setVerified } from '@/lib/contracts';
+import { resolveCidUrl } from '@/lib/storage';
+import VerificationBadge from '@/components/VerificationBadge';
 
-function isHttpOrIpfs(url?: string): boolean {
-  if (!url) return false;
-  return /^https?:\/\//i.test(url) || /^ipfs:\/\//i.test(url);
+function short(addr?: string) {
+  if (!addr) return '';
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 export default function DatasetPage({ params }: { params: { id: string } }) {
@@ -18,146 +18,114 @@ export default function DatasetPage({ params }: { params: { id: string } }) {
     return Number.isFinite(n) && n > 0 ? BigInt(n) : null;
   }, [params.id]);
 
-  let address: `0x${string}` | null = null;
-  let envError: string | null = null;
-  try {
-    address = getDataNftAddress();
-  } catch (e: any) {
-    envError = e?.message ?? 'Contract address missing';
-  }
+  const qc = useQueryClient();
+  const { address } = useAccount();
 
-  const publicClient = usePublicClient();
-  const { address: wallet } = useAccount();
-  const { writeContractAsync, isPending: isWriting } = useWriteContract();
-
-  const datasetQ = useQuery({
-    queryKey: ['dataset', address, tokenId?.toString()],
-    enabled: Boolean(address && tokenId && publicClient),
+  const dsQ = useQuery({
+    queryKey: ['dataset', tokenId?.toString()],
+    enabled: Boolean(tokenId),
     queryFn: async () => {
-      const result = await publicClient!.readContract({ address: address!, abi: dataNftAbi, functionName: 'getDataset', args: [tokenId!] });
-      return result as {
-        cid: string;
-        sha256sum: string;
-        licenseUri: string;
-        domain: string;
-        tags: string[];
-        verified: boolean;
-      };
+      try {
+        return await readDataset(tokenId!);
+      } catch (e: any) {
+        if (/bad token/i.test(String(e?.message))) return null;
+        throw e;
+      }
     },
   });
 
-  const ownerQ = useQuery({
-    queryKey: ['ownerOf', address, tokenId?.toString()],
-    enabled: Boolean(address && tokenId && publicClient),
-    queryFn: async () => publicClient!.readContract({ address: address!, abi: dataNftAbi, functionName: 'ownerOf', args: [tokenId!] }) as Promise<`0x${string}`>,
-  });
-
-  const isOwner = wallet && ownerQ.data && wallet.toLowerCase() === ownerQ.data.toLowerCase();
-  const dataset = datasetQ.data;
-  const error = datasetQ.error as any;
-  const isPending = datasetQ.isPending;
+  const isOwner = address && dsQ.data && address.toLowerCase() === dsQ.data.owner.toLowerCase();
 
   return (
     <main className="p-6">
-      <div className="max-w-3xl mx-auto">
-        <h2 className="text-2xl font-semibold">Dataset #{params.id}</h2>
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-semibold">Data #{params.id}</h2>
+          {dsQ.data && <VerificationBadge verified={dsQ.data.verified} domain={dsQ.data.domain} />}
+        </div>
 
-        {envError && (
-          <div className="mt-4 text-red-400">{envError}</div>
+        {dsQ.isPending && (
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="h-28 rounded bg-neutral-900/40 border border-neutral-800 animate-pulse" />
+            <div className="h-28 rounded bg-neutral-900/40 border border-neutral-800 animate-pulse" />
+          </div>
         )}
 
-        {!envError && isPending && (
-          <div className="mt-6 opacity-80">Loading dataset…</div>
+        {!dsQ.isPending && dsQ.data === null && (
+          <div className="mt-6 rounded border border-neutral-800 bg-neutral-900/40 p-6">
+            <div className="text-lg font-medium">Not found</div>
+            <div className="opacity-80 mt-1">This dataset does not exist.</div>
+            <a href="/" className="mt-4 inline-block underline">Go home</a>
+          </div>
         )}
 
-        {!envError && error && (
-          <div className="mt-6 text-red-400">{String(error?.message || 'Failed to load')}</div>
-        )}
-
-        {!envError && !isPending && !dataset && !error && (
-          <div className="mt-6 opacity-80">No dataset found.</div>
-        )}
-
-        {!envError && dataset && (
+        {!dsQ.isPending && dsQ.data && (
           <div className="mt-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-5">
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <dt className="text-sm opacity-70">CID</dt>
-                <dd className="mt-1 break-all">
-                  <span className="px-2 py-1 rounded bg-neutral-800/70">{dataset.cid}</span>
-                </dd>
+                <div className="text-sm opacity-70">Owner</div>
+                <div className="mt-1">{short(dsQ.data.owner)}</div>
               </div>
               <div>
-                <dt className="text-sm opacity-70">SHA-256</dt>
-                <dd className="mt-1 break-all">{dataset.sha256sum || '-'}</dd>
+                <div className="text-sm opacity-70">CID</div>
+                <div className="mt-1 break-all flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-neutral-800/70 border border-neutral-700">{dsQ.data.cid}</span>
+                  <button 
+                    className="text-xs px-1 py-0.5 rounded border border-neutral-700 hover:bg-neutral-800"
+                    onClick={() => navigator.clipboard.writeText(dsQ.data!.cid)}
+                  >
+                    Copy
+                  </button>
+                </div>
               </div>
               <div>
-                <dt className="text-sm opacity-70">License URL</dt>
-                <dd className="mt-1 break-all">
-                  {isHttpOrIpfs(dataset.licenseUri) ? (
-                    <a className="underline" href={dataset.licenseUri} target="_blank" rel="noreferrer">
-                      {dataset.licenseUri}
-                    </a>
-                  ) : (
-                    dataset.licenseUri || '-'
-                  )}
-                </dd>
+                <div className="text-sm opacity-70">License</div>
+                <div className="mt-1 break-all">
+                  <a className="underline" href={dsQ.data.licenseUri} target="_blank" rel="noreferrer">{dsQ.data.licenseUri}</a>
+                </div>
               </div>
               <div>
-                <dt className="text-sm opacity-70">Domain</dt>
-                <dd className="mt-1">{dataset.domain || '-'}</dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-sm opacity-70">Tags</dt>
-                <dd className="mt-1 flex flex-wrap gap-2">
-                  {(dataset.tags || []).length ? (
-                    dataset.tags.map((t, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-full text-sm bg-neutral-800/70 border border-neutral-700">
-                        {t}
-                      </span>
-                    ))
-                  ) : (
-                    <span>-</span>
-                  )}
-                </dd>
+                <div className="text-sm opacity-70">Domain</div>
+                <div className="mt-1">{dsQ.data.domain || '-'}</div>
               </div>
               <div>
-                <dt className="text-sm opacity-70">Verified</dt>
-                <dd className="mt-1">
-                  {dataset.verified ? (
-                    <span className="text-emerald-400">Yes</span>
-                  ) : (
-                    <span className="opacity-80">No</span>
-                  )}
-                </dd>
+                <div className="text-sm opacity-70">Tags</div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {(dsQ.data.tags || []).length ? dsQ.data.tags.map((t, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full text-sm bg-neutral-800/70 border border-neutral-700">{t}</span>
+                  )) : <span>-</span>}
+                </div>
               </div>
               <div>
-                <dt className="text-sm opacity-70">Open</dt>
-                <dd className="mt-1">
-                  <a className="px-3 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-sm" href={`${getStorageGateway()}${dataset.cid}`} target="_blank" rel="noreferrer">Open dataset</a>
-                </dd>
+                <div className="text-sm opacity-70">Verified</div>
+                <div className="mt-1">{dsQ.data.verified ? <span className="text-emerald-400">Yes ✓</span> : <span className="opacity-80">No</span>}</div>
               </div>
-            </dl>
-            {isOwner && (
-              <div className="mt-6">
+              <div>
+                <div className="text-sm opacity-70">SHA-256</div>
+                <div className="mt-1 break-all">{dsQ.data.sha256sum ? `${dsQ.data.sha256sum.slice(0, 12)}…${dsQ.data.sha256sum.slice(-6)}` : '-'}</div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center gap-3">
+              <a className="px-3 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-sm" href={resolveCidUrl(dsQ.data.cid)} target="_blank" rel="noreferrer">Open dataset</a>
+              <button
+                className="px-3 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-sm"
+                onClick={() => navigator.clipboard.writeText(window.location.href)}
+              >
+                Copy share link
+              </button>
+              {isOwner && (
                 <button
                   className="px-3 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-sm"
-                  disabled={isWriting}
                   onClick={async () => {
-                    try {
-                      const hash = await (writeContractAsync as any)({ address: address!, abi: dataNftAbi as any, functionName: 'setVerified', args: [tokenId!, !dataset.verified], account: wallet!, chain: configuredChain });
-                      await publicClient!.waitForTransactionReceipt({ hash });
-                      await datasetQ.refetch();
-                    } catch (e: any) {
-                      // no-op, inline error via console
-                      console.error(e);
-                    }
+                    await setVerified({ tokenId: tokenId!, value: !dsQ.data!.verified });
+                    await qc.invalidateQueries({ queryKey: ['dataset', tokenId?.toString()] });
                   }}
                 >
-                  {isWriting ? 'Updating…' : dataset.verified ? 'Unverify' : 'Verify'}
+                  {dsQ.data.verified ? 'Unverify' : 'Mark Verified'}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </div>

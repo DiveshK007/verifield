@@ -18,11 +18,12 @@ export default function Header() {
   try { getDataNftAddress(); } catch (_) { addrMissing = true; }
 
   return (
-    <div className="px-4 py-3 border-b border-neutral-800 flex items-center gap-3">
+    <div className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-neutral-950/80 bg-neutral-950/95 px-4 py-3 border-b border-neutral-800 flex items-center gap-3">
       <a href="/" className="font-semibold">Verifield</a>
       <div className="ml-auto flex items-center gap-3">
+        <span className="text-xs opacity-60">Chain: {configuredChain.id}</span>
         {addrMissing && (
-          <div className="text-amber-300/90 text-sm">Set NEXT_PUBLIC_DATANFT_ADDRESS in .env.local</div>
+          <div className="text-amber-300/90 text-xs">Set NEXT_PUBLIC_DATANFT_ADDRESS</div>
         )}
         {onWrongChain && (
           <div className="text-amber-300/90 text-sm flex items-center gap-2">
@@ -32,7 +33,7 @@ export default function Header() {
               onClick={() => switchChain({ chainId: configuredChain.id })}
               disabled={isSwitching}
             >
-              {isSwitching ? 'Switching…' : `Switch to ${configuredChain.id}`}
+              {isSwitching ? 'Switching…' : `Switch`}
             </button>
           </div>
         )}
@@ -46,10 +47,10 @@ export default function Header() {
             {isPending ? 'Connecting…' : 'Connect Wallet'}
           </button>
         ) : (
-          <>
-            <span className="text-sm opacity-80">{address?.slice(0,6)}…{address?.slice(-4)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm opacity-80 px-2 py-1 rounded-full bg-neutral-800 border border-neutral-700">{address?.slice(0,6)}…{address?.slice(-4)}</span>
             <button onClick={() => disconnect()} className="px-2 py-1.5 rounded bg-neutral-800 border border-neutral-700 text-sm">Disconnect</button>
-          </>
+          </div>
         )}
       </div>
     </div>
