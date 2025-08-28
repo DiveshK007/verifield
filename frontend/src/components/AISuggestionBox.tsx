@@ -112,9 +112,8 @@ const AISuggestionBox = () => {
   );
 };
 
-interface AISuggestionBoxProps {
-  onApplySuggestions?: (suggestions: any) => void;
-}
+interface AppliedSuggestions { tags?: string[]; description?: string }
+interface AISuggestionBoxProps { onApplySuggestions?: (suggestions: AppliedSuggestions) => void }
 
 const AISuggestionBoxEnhanced = ({ onApplySuggestions }: AISuggestionBoxProps) => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([

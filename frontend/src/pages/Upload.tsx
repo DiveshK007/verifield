@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import AISuggestionBox from '@/components/AISuggestionBox';
 import { useToast } from '@/hooks/use-toast';
+import { useAccount, useWriteContract } from 'wagmi';
+import { hardhat } from '@/lib/wagmi';
+import DataNFTAbi from '@/lib/abis/DataNFT';
+import { assertEnv, getContracts, smartUpload } from '@/lib/utils';
 import {
   Upload as UploadIcon,
   FileText,
@@ -44,6 +48,14 @@ const Upload = () => {
   });
   const [tagInput, setTagInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [file, setFile] = useState<File|null>(null)
+  const { address, isConnected } = useAccount()
+  const { writeContractAsync, isPending } = useWriteContract()
+  const contracts = useMemo(()=>getContracts(),[])
+
+  useEffect(()=>{
+    try { assertEnv() } catch (e: unknown) { const err = e as Error; toast({ title: 'Missing env', description: err.message, variant: 'destructive' }) }
+  },[])
 
   const addTag = () => {
     if (tagInput.trim() && !form.tags.includes(tagInput.trim())) {
@@ -89,40 +101,42 @@ const Upload = () => {
       return;
     }
 
+    if (!isConnected || !address) {
+      toast({ title: 'Wallet not connected', description: 'Connect your wallet to mint', variant: 'destructive' });
+      return;
+    }
     setIsUploading(true);
-    
-    // Mock minting process
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      toast({
-        title: "Dataset Minted Successfully!",
-        description: `Dataset "${form.title}" has been minted as NFT #${Math.floor(Math.random() * 1000)}`,
-      });
-      
-      // Reset form
-      setForm({
-        title: '',
-        description: '',
-        cid: '',
-        sha256: '',
-        licenseUrl: '',
-        tags: [],
-        verified: false,
-        price: '0'
-      });
-    } catch (error) {
-      toast({
-        title: "Minting Failed",
-        description: "There was an error minting your dataset",
-        variant: "destructive"
-      });
+      let cid = form.cid
+      let sha256 = form.sha256
+      if (file && (!cid || !sha256)) {
+        const uploaded = await smartUpload(file)
+        cid = uploaded.cid
+        sha256 = uploaded.sha256
+        setForm((f)=>({ ...f, cid, sha256 }))
+      }
+      const uri = `${(import.meta.env as Record<string,string>).VITE_STORAGE_GATEWAY}/${cid}`
+      const tokenId = await writeContractAsync({
+        abi: DataNFTAbi as unknown,
+        address: contracts.dataNft as `0x${string}`,
+        chain: hardhat,
+        account: address,
+        functionName: 'mint',
+        args: [form.title, uri]
+      })
+      toast({ title: 'Mint tx sent', description: `Tx hash: ${String(tokenId).slice(0,10)}...` })
+      toast({ title: 'Dataset Minted Successfully!', description: `Your dataset has been minted.` })
+      setForm({ title: '', description: '', cid: '', sha256: '', licenseUrl: '', tags: [], verified: false, price: '0' })
+      setFile(null)
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Minting Failed', description: error.message || 'There was an error minting your dataset', variant: 'destructive' })
     } finally {
-      setIsUploading(false);
+      setIsUploading(false)
     }
   };
 
-  const applySuggestions = (suggestions: any) => {
+  const applySuggestions = (suggestions: { tags?: string[]; description?: string }) => {
     setForm({
       ...form,
       tags: suggestions.tags || form.tags,
@@ -210,6 +224,12 @@ const Upload = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   Content Identifier for your dataset on IPFS
                 </p>
+              </div>
+
+              <div>
+                <Label>File Upload (optional)</Label>
+                <Input type="file" accept="*/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} className="bg-background border-border/50" />
+                <p className="text-xs text-muted-foreground mt-1">If provided, we will attempt IPFS upload then mock fallback.</p>
               </div>
 
               <div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { useAccount, useReadContract, useWriteContract } from 'wagmi';
+import { hardhat } from '@/lib/wagmi';
+import DataNFTAbi from '@/lib/abis/DataNFT';
+import MarketplaceAbi from '@/lib/abis/Marketplace';
+import { getContracts } from '@/lib/utils';
 import {
   Download,
   Star,
@@ -55,21 +60,52 @@ const DatasetDetail = () => {
   const { toast } = useToast();
   const [isStarred, setIsStarred] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const { address, isConnected } = useAccount()
+  const { data: name } = useReadContract({
+    abi: DataNFTAbi as unknown,
+    address: getContracts().dataNft as `0x${string}`,
+    chainId: hardhat.id,
+    functionName: 'nameOf',
+    args: [BigInt(id||'0')]
+  })
+  const { data: uri } = useReadContract({
+    abi: DataNFTAbi as unknown,
+    address: getContracts().dataNft as `0x${string}`,
+    chainId: hardhat.id,
+    functionName: 'tokenURI',
+    args: [BigInt(id||'0')]
+  })
+  const { data: itemStats } = useReadContract({
+    abi: MarketplaceAbi as unknown,
+    address: getContracts().marketplace as `0x${string}`,
+    chainId: hardhat.id,
+    functionName: 'getItemStats',
+    args: [BigInt(id||'0')]
+  })
+  const { writeContractAsync } = useWriteContract()
   
   const dataset = getDataset(id || '1');
 
   const handlePurchase = async () => {
+    if (!isConnected || !address) { toast({ title: 'Connect wallet', description: 'Please connect your wallet to purchase', variant: 'destructive' }); return }
     setIsPurchasing(true);
-    
-    // Mock purchase process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast({
-      title: "Purchase Successful!",
-      description: `You can now download "${dataset.title}"`,
-    });
-    
-    setIsPurchasing(false);
+    try {
+      await writeContractAsync({
+        abi: MarketplaceAbi as unknown,
+        address: getContracts().marketplace as `0x${string}`,
+        chain: hardhat,
+        account: address,
+        functionName: 'purchase',
+        args: [BigInt(id||'0')],
+        value: 0n
+      })
+      toast({ title: 'Purchase Successful!', description: `You can now download "${dataset.title}"` })
+    } catch (err: unknown) {
+      const e = err as Error
+      toast({ title: 'Purchase Failed', description: e.message || 'Transaction failed', variant: 'destructive' })
+    } finally {
+      setIsPurchasing(false)
+    }
   };
 
   const handleStar = () => {
@@ -99,7 +135,7 @@ const DatasetDetail = () => {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h1 className="text-2xl font-bold text-foreground">{dataset.title}</h1>
+                    <h1 className="text-2xl font-bold text-foreground">{(name as string|undefined) || dataset.title}</h1>
                     {dataset.verified && (
                       <Badge variant="default" className="gap-1">
                         <Shield className="h-3 w-3" />
@@ -220,14 +256,12 @@ const DatasetDetail = () => {
                 <div>
                   <Label className="text-muted-foreground">IPFS CID</Label>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-foreground truncate">
-                      {dataset.cid}
-                    </span>
+                    <span className="font-mono text-xs text-foreground truncate">{String(uri||dataset.cid)}</span>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0"
-                      onClick={() => copyToClipboard(dataset.cid, 'IPFS CID')}
+                      onClick={() => copyToClipboard(String(uri||dataset.cid), 'IPFS CID')}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>

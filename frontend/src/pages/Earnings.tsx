@@ -13,6 +13,11 @@ import {
   DollarSign,
   Clock
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useAccount, useWriteContract } from 'wagmi';
+import MarketplaceAbi from '@/lib/abis/Marketplace';
+import { hardhat } from '@/lib/wagmi';
+import { getContracts } from '@/lib/utils';
 
 const transactionData = [
   {
@@ -45,6 +50,27 @@ const Earnings = () => {
   const [totalEarnings] = useState(15420);
   const [pendingEarnings] = useState(1250);
   const [monthlyGrowth] = useState(23);
+  const { toast } = useToast()
+  const { address, isConnected } = useAccount()
+  const { writeContractAsync, isPending } = useWriteContract()
+
+  const handleWithdraw = async () => {
+    if (!isConnected || !address) { toast({ title: 'Connect wallet', description: 'Please connect your wallet', variant: 'destructive' }); return }
+    try {
+      await writeContractAsync({
+        abi: MarketplaceAbi as unknown,
+        address: getContracts().marketplace as `0x${string}`,
+        chain: hardhat,
+        account: address,
+        functionName: 'withdrawCredits',
+        args: []
+      })
+      toast({ title: 'Withdrawal sent', description: 'Your credits withdrawal transaction has been submitted.' })
+    } catch (err: unknown) {
+      const e = err as Error
+      toast({ title: 'Withdraw failed', description: e.message || 'Transaction failed', variant: 'destructive' })
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -55,9 +81,9 @@ const Earnings = () => {
             Track your revenue and manage payouts
           </p>
         </div>
-        <Button className="shadow-glow hover:shadow-elevated transition-all duration-300">
+        <Button className="shadow-glow hover:shadow-elevated transition-all duration-300" onClick={handleWithdraw} disabled={isPending}>
           <CreditCard className="h-4 w-4 mr-2" />
-          Withdraw Funds
+          {isPending ? 'Withdrawing...' : 'Withdraw Funds'}
         </Button>
       </div>
 

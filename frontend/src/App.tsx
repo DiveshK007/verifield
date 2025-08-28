@@ -1,55 +1,44 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Datasets from "./pages/Datasets";
-import Marketplace from "./pages/Marketplace";
-import Earnings from "./pages/Earnings";
-import Activity from "./pages/Activity";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import Insights from "./pages/Insights";
-import Upload from "./pages/Upload";
-import DatasetDetail from "./pages/DatasetDetail";
-import AnimatedBackground from "./components/AnimatedBackground";
-import Sidebar from "./components/Sidebar";
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Dashboard from './pages/Dashboard'
+import Datasets from './pages/Datasets'
+import Upload from './pages/Upload'
+import Marketplace from './pages/Marketplace'
+import Earnings from './pages/Earnings'
+import Activity from './pages/Activity'
+import Insights from './pages/Insights'
+import Profile from './pages/Profile'
+import Settings from './pages/Settings'
+import Wallet from './pages/Wallet'
+import Chain from './pages/Chain'
+import Mint from './pages/Mint'
+import Inspect from './pages/Inspect'
+import Sidebar from './components/Sidebar'
+import './App.css'
 
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
-        <AnimatedBackground />
-        <BrowserRouter>
-          <div className="flex min-h-screen relative z-10">
-            <Sidebar />
-            <main className="flex-1 overflow-auto">
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/datasets" element={<Datasets />} />
-                <Route path="/marketplace" element={<Marketplace />} />
-                <Route path="/earnings" element={<Earnings />} />
-                <Route path="/activity" element={<Activity />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/insights" element={<Insights />} />
-                <Route path="/upload" element={<Upload />} />
-                <Route path="/dataset/:id" element={<DatasetDetail />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </main>
-          </div>
-        </BrowserRouter>
+export default function App() {
+  return (
+    <BrowserRouter>
+      <div className="app-layout">
+        <Sidebar />
+        <main className="app-main">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/datasets" element={<Datasets />} />
+            <Route path="/upload" element={<Upload />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/earnings" element={<Earnings />} />
+            <Route path="/activity" element={<Activity />} />
+            <Route path="/insights" element={<Insights />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/wallet" element={<Wallet />} />
+            <Route path="/chain" element={<Chain />} />
+            <Route path="/mint" element={<Mint />} />
+            <Route path="/inspect" element={<Inspect />} />
+            <Route path="*" element={<div style={{padding:24}}><h1>404</h1></div>} />
+          </Routes>
+        </main>
       </div>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+    </BrowserRouter>
+  )
+}
