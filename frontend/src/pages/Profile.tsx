@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useAccount, useReadContract } from 'wagmi';
+import MarketplaceAbi from '@/lib/abis/Marketplace';
+import { getContracts } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +27,15 @@ import {
 
 const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
+  const { address } = useAccount()
+  const marketAddr = useMemo(()=>getContracts().marketplace,[])
+  const { data: summary } = useReadContract({
+    abi: MarketplaceAbi as unknown,
+    address: marketAddr as `0x${string}`,
+    functionName: 'getUserSummary',
+    args: [ (address||'0x0000000000000000000000000000000000000000') as `0x${string}` ]
+  })
+  const [uploads, salesCount, credits, ownedCount] = (summary as unknown as [bigint,bigint,bigint,bigint]) || [0n,0n,0n,0n]
   const [profile, setProfile] = useState({
     name: 'John Doe',
     email: 'john.doe@example.com',
@@ -37,12 +49,12 @@ const Profile = () => {
   });
 
   const stats = {
-    datasetsUploaded: 47,
-    totalDownloads: 15420,
-    totalStars: 892,
-    creditsEarned: 15420,
-    followers: 1284,
-    following: 156
+    datasetsUploaded: Number(uploads),
+    totalDownloads: 0,
+    totalStars: 0,
+    creditsEarned: Number(credits),
+    followers: 0,
+    following: 0
   };
 
   const recentDatasets = [

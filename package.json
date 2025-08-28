@@ -5,7 +5,11 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "build": "hardhat compile",
-    "deploy:testnet": "hardhat run scripts/deploy.ts --network bsc_testnet"
+    "node": "hardhat node --hostname 127.0.0.1 --port 8545",
+    "deploy:local": "hardhat run scripts/deploy.ts",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network bsc_testnet",
+    "seed": "ts-node scripts/seed.ts",
+    "dev:all": "concurrently -k \"pnpm:node\" \"sleep 2 && pnpm:deploy:local\" \"cd frontend && pnpm dev\""
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "3.1.0",

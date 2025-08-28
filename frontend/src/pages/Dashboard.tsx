@@ -7,6 +7,7 @@ import UserStats from '@/components/UserStats';
 import DatasetCard from '@/components/DatasetCard';
 import AISuggestionBox from '@/components/AISuggestionBox';
 import NetworkStatus from '@/components/NetworkStatus';
+import { useRecentDatasets } from '@/lib/recent';
 import { 
   Search, 
   Filter, 
@@ -66,6 +67,7 @@ const datasets = [
 const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('uploaded');
+  const recent = useRecentDatasets(12)
 
   return (
     <div className="space-y-6">
@@ -92,6 +94,32 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-3 space-y-6">
+          {/* Recent Datasets */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-foreground">Recent Datasets</h2>
+              {recent.loading && <span className="text-sm text-muted-foreground">Loading…</span>}
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {recent.items.map((d)=> (
+                <DatasetCard key={String(d.tokenId)} dataset={{
+                  id: String(d.tokenId),
+                  title: d.name || `Dataset #${String(d.tokenId)}`,
+                  description: d.uri || '—',
+                  author: { name: '—' },
+                  tags: [],
+                  downloads: 0,
+                  stars: 0,
+                  price: 0,
+                  lastUpdated: 'recent',
+                  isPrivate: false,
+                  verified: true,
+                  size: '—'
+                }} />
+              ))}
+            </div>
+            {recent.error && <div className="text-sm text-destructive">{recent.error}</div>}
+          </div>
           {/* Search and Filters */}
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
